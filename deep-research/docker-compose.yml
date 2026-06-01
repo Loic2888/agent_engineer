@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      CORS_ORIGINS: "http://localhost"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
