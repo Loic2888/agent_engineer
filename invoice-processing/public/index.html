@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Processing Agent</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Invoice Processing Agent</h1>
+      <p class="subtitle">Déposez une facture (PDF ou image) pour l'analyser automatiquement.</p>
+    </header>
+
+    <!-- Upload zone -->
+    <section class="card upload-card">
+      <div id="drop-zone" class="drop-zone">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 16v-8m0 0-3 3m3-3 3 3M4.5 19.5h15a1.5 1.5 0 0 0 0-3h-15a1.5 1.5 0 0 0 0 3Z" />
+        </svg>
+        <p>Glissez-déposez un fichier ici</p>
+        <p class="hint">ou</p>
+        <label class="btn-primary" for="file-input">Choisir un fichier</label>
+        <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.webp" hidden />
+        <p class="hint">PDF, PNG, JPG, WEBP — max 20 Mo</p>
+      </div>
+
+      <div id="upload-status" class="upload-status hidden">
+        <div class="spinner"></div>
+        <span id="status-text">Analyse en cours…</span>
+      </div>
+
+      <div id="result-box" class="result-box hidden"></div>
+    </section>
+
+    <!-- Invoice list -->
+    <section class="card">
+      <div class="list-header">
+        <h2>Factures enregistrées</h2>
+        <button class="btn-outline" id="refresh-btn">Actualiser</button>
+      </div>
+      <div id="invoice-list">
+        <p class="empty-msg">Aucune facture pour le moment.</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
