@@ -11,6 +11,7 @@ Each project lives in its own folder with its own stack, README, and `CLAUDE.md`
 | Project | Description | Stack | Status |
 |---|---|---|---|
 | [`deep-research`](./deep-research/) | Multi-agent pipeline that researches any topic and generates a structured Markdown report with citations | Python · FastAPI · LangGraph · Gemini · Tavily · React | 🚧 In progress |
+| [`invoice-processing`](./invoice-processing/) | Agentic pipeline that classifies documents and extracts invoice fields (issuer, amount, due date) into a database | Node.js · Express · Gemini · SQLite · Docker | ✅ Done |
 
 ---
 
@@ -28,14 +29,15 @@ This repo explores different agent architectures:
 
 ## Stack preferences
 
-Most projects in this repo follow this stack unless noted otherwise:
+Each project picks the right tool for the job. Common choices across the repo:
 
-- **LLM** — Google Gemini (via google-generativeai SDK)
-- **Orchestration** — LangGraph (stateful multi-agent graphs)
-- **Backend** — Python 3.12 + FastAPI + uvicorn
-- **Frontend** — React 19 + Vite + TailwindCSS
+- **LLM** — Google Gemini (`gemini-2.5-flash`) via the official SDK
+- **Orchestration** — LangGraph (stateful multi-agent graphs) or custom Express pipelines
+- **Backend** — Python 3.12 + FastAPI, or Node.js 20 + Express depending on the project
+- **Frontend** — React 19 + Vite + TailwindCSS, or plain HTML/CSS/JS for lightweight UIs
 - **Search** — Tavily API (primary) + SerpAPI (fallback)
-- **Streaming** — Server-Sent Events (SSE)
+- **Database** — SQLite for embedded storage, PostgreSQL for production workloads
+- **Deployment** — Docker + Docker Compose for all projects; `launch.bat` for Windows one-click start
 
 ---
 
@@ -44,10 +46,17 @@ Most projects in this repo follow this stack unless noted otherwise:
 ```
 agent_engineer/
 ├── README.md
-├── deep-research/          # Project 1
+├── deep-research/          # Project 1 — multi-agent research pipeline
 │   ├── CLAUDE.md
 │   ├── backend/
 │   └── frontend/
+├── invoice-processing/     # Project 2 — agentic invoice parser
+│   ├── CLAUDE.md
+│   ├── public/             # Web UI
+│   ├── src/                # Express backend + agentic pipeline
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── launch.bat          # Windows one-click launcher
 └── ...                     # Future projects
 ```
 
