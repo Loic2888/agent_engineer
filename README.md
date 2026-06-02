@@ -10,7 +10,7 @@ Each project lives in its own folder with its own stack, README, and `CLAUDE.md`
 
 | Project | Description | Stack | Status |
 |---|---|---|---|
-| [`deep-research`](./deep-research/) | Multi-agent pipeline that researches any topic and generates a structured Markdown report with citations | Python · FastAPI · LangGraph · Gemini · Tavily · React | 🚧 In progress |
+| [`deep-research`](./deep-research/) | Multi-agent pipeline that researches any topic and generates a structured Markdown report with citations | Python · FastAPI · LangGraph · Gemini · Tavily · React | ✅ Done |
 | [`invoice-processing`](./invoice-processing/) | Agentic pipeline that classifies documents and extracts invoice fields (issuer, amount, due date) into a database | Node.js · Express · Gemini · SQLite · Docker | ✅ Done |
 
 ---
