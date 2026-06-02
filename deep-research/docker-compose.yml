@@ -5,6 +5,12 @@ services:
     env_file: .env
     environment:
       CORS_ORIGINS: "http://localhost"
+<<<<<<< HEAD
+=======
+      DB_PATH: "/data/research.db"
+    volumes:
+      - research_data:/data
+>>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -17,3 +23,9 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+<<<<<<< HEAD
+=======
+
+volumes:
+  research_data:
+>>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d

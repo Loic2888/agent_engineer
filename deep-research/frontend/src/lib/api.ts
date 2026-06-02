@@ -11,6 +11,30 @@ export type Source = {
   score: number
 }
 
+<<<<<<< HEAD
+=======
+export type HistoryItem = {
+  id: number
+  query: string
+  created_at: string
+}
+
+export type SimilarItem = {
+  id: number
+  query: string
+  created_at: string
+  similarity: number
+}
+
+export type HistoryDetail = {
+  id: number
+  query: string
+  report: string
+  sources: Source[]
+  created_at: string
+}
+
+>>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 export async function streamResearch(
   query: string,
   onStep: (event: ResearchEvent) => void,
@@ -56,3 +80,36 @@ export async function streamResearch(
     }
   }
 }
+<<<<<<< HEAD
+=======
+
+export async function fetchHistory(): Promise<HistoryItem[]> {
+  const res = await fetch('/history')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchHistoryItem(id: number): Promise<HistoryDetail> {
+  const res = await fetch(`/history/${id}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteHistoryItem(id: number): Promise<void> {
+  await fetch(`/history/${id}`, { method: 'DELETE' })
+}
+
+export async function checkSimilarResearch(query: string): Promise<SimilarItem[]> {
+  try {
+    const res = await fetch('/history/similar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    })
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+>>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d

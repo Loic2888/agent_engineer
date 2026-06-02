@@ -5,7 +5,11 @@ import google.generativeai as genai
 from graph.state import ResearchState
 
 logger = logging.getLogger(__name__)
+<<<<<<< HEAD
 _model = genai.GenerativeModel("gemini-2.0-flash")
+=======
+_model = genai.GenerativeModel("gemini-2.5-flash")
+>>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 _PROMPT = """Decompose this research question into 3 to 5 precise, complementary sub-questions \
 that together cover the topic thoroughly.
