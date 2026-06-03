@@ -12,6 +12,7 @@ Each project lives in its own folder with its own stack, README, and `CLAUDE.md`
 |---|---|---|---|
 | [`deep-research`](./deep-research/) | Multi-agent pipeline that researches any topic and generates a structured Markdown report with citations | Python · FastAPI · LangGraph · Gemini · Tavily · React | ✅ Done |
 | [`invoice-processing`](./invoice-processing/) | Agentic pipeline that classifies documents and extracts invoice fields (issuer, amount, due date) into a database | Node.js · Express · Gemini · SQLite · Docker | ✅ Done |
+| [`WEBtoPDF`](./WEBtoPDF/) | Multi-agent pipeline that converts PDF → HTML/CSS with visual validation loop (screenshot comparison via Gemini vision, iterates until ≥ 90% similarity) and HTML/CSS → PDF via Puppeteer | Node.js · Express · Puppeteer · pdfjs-dist · Gemini · SSE · Docker | 🔄 En cours |
 
 ---
 
@@ -57,6 +58,12 @@ agent_engineer/
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   └── launch.bat          # Windows one-click launcher
+├── WEBtoPDF/               # Project 3 — PDF ↔ HTML/CSS multi-agent converter
+│   ├── CLAUDE.md
+│   ├── backend/            # Express + 8 agents + JobStore + SSE
+│   ├── frontend/           # Vanilla UI with live agent log
+│   ├── docker-compose.yml
+│   └── start.bat           # Windows one-click launcher
 └── ...                     # Future projects
 ```
 
