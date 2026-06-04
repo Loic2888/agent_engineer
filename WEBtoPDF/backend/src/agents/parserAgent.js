@@ -13,9 +13,12 @@ export async function runParserAgent(ctx) {
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ctx.files[0].buffer) }).promise;
     const layout = ctx.pdfLayout;
     const allItems = [];
+    const pageDimensions = [];
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1 });
+      pageDimensions.push({ width: viewport.width, height: viewport.height });
       const tc = await page.getTextContent();
       for (const item of tc.items) {
         if (!item.str || !item.str.trim()) continue;
@@ -28,6 +31,10 @@ export async function runParserAgent(ctx) {
         });
       }
     }
+
+    // Données brutes positionnées — utilisées par le builderAgent (placement déterministe)
+    ctx.positionedItems = allItems;
+    ctx.pageDimensions = pageDimensions;
 
     if (allItems.length === 0) {
       ctx.warnings.push('No text found — PDF may be scanned (image-based). OCR is not supported.');

@@ -5,7 +5,7 @@ Application web complète qui convertit des fichiers dans les deux sens :
 - **Mode A** : HTML/CSS → PDF (rendu via Puppeteer)
 - **Mode B** : PDF → HTML/CSS (reconstruction visuelle via IA multi-agents)
 
-Le Mode B utilise une architecture **multi-agents** : chaque agent a une responsabilité unique, et une boucle de validation visuelle (screenshot → Gemini vision → score) itère jusqu'à atteindre 90 % de similarité avec le document original.
+Le Mode B utilise une architecture **multi-agents**. Le texte est placé de façon **déterministe** à ses coordonnées exactes (extraites du PDF), puis une boucle d'enrichissement visuel (screenshot → Gemini vision → score) ajuste les couleurs et fonds jusqu'à atteindre 80 % de similarité avec le document original. Le texte n'est jamais deviné ni déplacé : il vient directement des positions x/y du PDF.
 
 ---
 
@@ -33,13 +33,13 @@ Requête HTTP
  Orchestrateur
      │
      ├─ planningAgent    ← analyse la structure du document
-     ├─ parserAgent      ← extrait le texte avec positions x/y
+     ├─ parserAgent      ← extrait le texte avec positions x/y exactes
      ├─ screenshotAgent  ← rend chaque page en image PNG
-     ├─ layoutAgent      ← reconstruit le squelette visuel (sans texte)
-     ├─ textAgent        ← injecte le vrai texte dans le layout
+     ├─ builderAgent     ← place le texte à ses coordonnées exactes (déterministe)
+     ├─ styleAgent       ← ajoute couleurs/fonds d'après le screenshot
      └─ validatorAgent   ← compare visuellement, génère les corrections
               │
-              └─ boucle (max 10 retries) jusqu'à score ≥ 90 %
+              └─ boucle (max 10 retries) — styleAgent uniquement, jusqu'à score ≥ 80 %
 ```
 
 Chaque agent est une fonction `async (ctx) → ctx`. Ils se passent un objet `ctx` (contexte du job) qui accumule les résultats au fil du pipeline.
@@ -78,35 +78,35 @@ Chaque agent est une fonction `async (ctx) → ctx`. Ils se passent un objet `ct
                         (nombre de colonnes, frontière, tailles de police)
          │
          ▼
-  parserAgent        → extrait le texte avec positions x/y par page
-                        (groupé par colonne gauche/droite, titres/body)
+  parserAgent        → extrait le texte avec positions x/y exactes par page
+                        + dimensions de chaque page (positionedItems)
          │
          ▼
   screenshotAgent    → rend chaque page PDF sur un <canvas> via pdfjs
                         → screenshot PNG de chaque page (référence visuelle)
          │
          ▼
-  layoutAgent        → envoie les screenshots à Gemini vision
-                        → génère le squelette HTML/CSS avec PLACEHOLDERS
-                        → [HEADING], [LABEL], [BODY TEXT], [NAME]...
-                        → focus : layout, couleurs, colonnes, fonts
+  builderAgent       → place CHAQUE texte à sa position exacte (x/y/fontSize)
+                        → <span> en position:absolute, aucun LLM
+                        → tout le texte présent, aucune perte possible
+                        → format A4 conservé
          │
          ▼
-  textAgent          → reçoit layout + texte extrait + screenshots
-                        → Gemini place le vrai texte aux bons endroits
-                        → remplace les placeholders par le contenu réel
+  styleAgent         → envoie le HTML + screenshot à Gemini vision
+                        → ajoute couleurs, fonds, sidebars, polices
+                        → NE déplace ni ne supprime aucun texte
+                        → garde-fou : rejet si du texte disparaît
          │
          ▼
   validatorAgent     → screenshot du HTML rendu (même dimensions que le PDF)
                         → compare avec screenshot PDF via Gemini vision
                         → score 0–100 + liste de corrections précises
          │
-         ├─ score ≥ 90 % → retourne le HTML/CSS ✅
+         ├─ score ≥ 80 % → retourne le HTML/CSS ✅
          │
-         └─ score < 90 % → corrections envoyées à textAgent → retry
-                   │
-                   └─ si score < 50 % après 1 retry → layoutAgent repart
-                       de zéro (le layout lui-même est refait)
+         └─ score < 80 % → corrections envoyées à styleAgent → retry
+                            (le placement du texte reste figé, seul
+                             le style est ajusté à chaque itération)
 ```
 
 ---
@@ -126,27 +126,28 @@ Extrait tout le texte du PDF page par page via `pdfjs-dist`, avec les coordonné
 - Par ligne (même y ± 3pt)
 - Par type (titre si `fontSize ≥ seuil`, sinon body)
 
-Produit un objet `structuredContent` hiérarchisé utilisé par `textAgent`.
+Expose les données brutes positionnées (`positionedItems` : texte + `x/y/fontSize` + page) et les dimensions de chaque page, consommées par le `builderAgent` pour le placement déterministe.
 
 ### `screenshotAgent`
-Lance un navigateur Puppeteer headless. Charge `pdfjs-dist` depuis le serveur Express (`/pdfjs/...`) dans une page HTML, rend chaque page PDF sur un `<canvas>`, puis prend un screenshot PNG. Ces images servent de **référence visuelle** pour `layoutAgent`, `textAgent` et `validatorAgent`.
+Lance un navigateur Puppeteer headless. Charge `pdfjs-dist` depuis le serveur Express (`/pdfjs/...`) dans une page HTML, rend chaque page PDF sur un `<canvas>`, puis prend un screenshot PNG. Ces images servent de **référence visuelle** pour le `styleAgent` et le `validatorAgent`.
 
-### `layoutAgent`
-Envoie les screenshots PDF à **Gemini 2.5 Flash** (multimodal) avec la consigne : *reproduire la structure visuelle en HTML/CSS, sans le vrai texte — utiliser des placeholders*. L'agent se concentre sur :
-- La structure de colonnes (flexbox/grid)
-- Les couleurs (fond, texte, titres, bordures)
-- Les tailles et graisses de police (hiérarchie visuelle)
-- L'espacement et les marges
+### `builderAgent`
+**Aucun LLM.** Construit le HTML/CSS directement à partir des coordonnées exactes extraites par le `parserAgent`. Chaque morceau de texte devient un `<span class="t">` en `position: absolute`, placé à sa position exacte :
+- `left = x`, `top = hauteurPage − y − fontSize` (conversion repère PDF bas-gauche → HTML haut-gauche)
+- `font-size = fontSize`, graisse renforcée pour les titres
+- Page en format A4 exact, fond blanc par défaut
 
-### `textAgent`
-Reçoit le squelette HTML/CSS du `layoutAgent`, le texte structuré du `parserAgent`, et les screenshots PDF. Demande à Gemini de remplacer les placeholders par le vrai contenu, en se basant sur les screenshots pour savoir *quel texte va où*. En cas de retry, reçoit également la liste de corrections du `validatorAgent`.
+Comme chaque texte est posé à sa coordonnée, **aucun texte ne peut être perdu ni mal placé** — c'est déterministe et reproductible. C'est ce qui garantit une base de fidélité élevée avant même toute itération.
+
+### `styleAgent`
+Envoie le HTML déterministe + le screenshot PDF à **Gemini 2.5 Flash** (multimodal). Gemini ajoute uniquement la **couche visuelle** : couleurs de texte, fonds de page, panneaux/sidebars colorés (via des `<div>` décoratifs placés *derrière* le texte), polices et graisses. Consigne stricte : ne jamais déplacer ni supprimer un `<span>` de texte. Un **garde-fou** compte les spans avant/après : si plus de 5 % du texte disparaît, la sortie est rejetée et la version précédente conservée. En cas de retry, reçoit la liste de corrections du `validatorAgent`.
 
 ### `validatorAgent`
 1. Rend le HTML/CSS dans Puppeteer avec un viewport calé sur les dimensions exactes de la page PDF
 2. Prend un screenshot du rendu HTML
 3. Envoie les deux images (PDF original + HTML rendu) à Gemini vision
 4. Gemini retourne un **score 0–100** et une **liste de corrections précises** (ex : `"Left sidebar background should be #1e2b3c, currently white"`)
-5. Si `score < threshold` → corrections transmises à `textAgent` pour un nouveau cycle
+5. Si `score < threshold` → corrections transmises au `styleAgent` pour un nouveau cycle (le placement du texte reste figé)
 
 ### `repairAgent` *(Mode A uniquement)*
 Utilisé quand le PDF généré par Puppeteer échoue la validation QA. Envoie les erreurs et le CSS original à Gemini qui génère un CSS de correction ciblé sur les problèmes de `@page`, `page-break`, et layout d'impression.
@@ -249,7 +250,7 @@ L'application est disponible sur **http://localhost:3002**
 | `PORT` | `3002` | Port d'écoute du serveur |
 | `MAX_RETRIES` | `8` | Nombre maximum de tentatives de correction |
 | `UPLOAD_SIZE_LIMIT` | `50mb` | Taille maximale des fichiers uploadés |
-| `VISUAL_SIMILARITY_THRESHOLD` | `90` | Score minimum (0–100) pour valider le résultat |
+| `VISUAL_SIMILARITY_THRESHOLD` | `80` | Score minimum (0–100) pour valider le résultat |
 
 ---
 

@@ -163,27 +163,6 @@ h2 {
 
 .progress-title { color: #94a3b8; font-size: 1rem; margin-bottom: 20px; }
 
-.agent-log {
-  text-align: left;
-  background: #0d1117;
-  border: 1px solid #2d3148;
-  border-radius: 10px;
-  padding: 14px 16px;
-  max-height: 320px;
-  overflow-y: auto;
-  font-family: 'Fira Code', 'Consolas', monospace;
-  font-size: 0.82rem;
-  line-height: 1.7;
-}
-
-.log-line {
-  color: #94a3b8;
-  animation: fadein 0.2s ease;
-}
-
-.log-line:last-child { color: #e2e8f0; }
-
-@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 .score-badge {
   display: inline-block;

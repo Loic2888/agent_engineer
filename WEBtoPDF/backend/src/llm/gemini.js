@@ -21,82 +21,39 @@ export async function askJson(systemPrompt, userPrompt) {
   return JSON.parse(result.response.text());
 }
 
-// Agent 1 — Reproduit la STRUCTURE VISUELLE depuis les screenshots.
-// Retourne HTML+CSS avec des placeholders à la place du vrai texte.
-export async function generateLayout(screenshots, pageW, pageH) {
+// Passe d'enrichissement visuel — le texte est DÉJÀ positionné exactement par
+// le builderAgent. Gemini ne fait qu'ajouter les couleurs, fonds et polices en
+// regardant le screenshot du PDF. Il ne doit jamais déplacer ni supprimer un span.
+export async function enhanceStyles(html, css, screenshot, corrections) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
     generationConfig: { responseMimeType: 'application/json' },
   });
 
   const parts = [
-    ...screenshots.map(s => ({ inlineData: { mimeType: 'image/png', data: s.toString('base64') } })),
+    { inlineData: { mimeType: 'image/png', data: screenshot.toString('base64') } },
     {
-      text: `You are a web designer. Analyze these ${screenshots.length} PDF page screenshot(s) and reproduce the visual layout as HTML+CSS.
+      text: `You are styling an HTML page that reproduces the attached PDF screenshot.
+The text is ALREADY positioned at the exact correct coordinates. Your ONLY job is
+to make the colors, backgrounds, fonts and decorations match the screenshot.
 
-FOCUS ONLY ON VISUAL STRUCTURE:
-- Exact layout (columns, widths, positions)
-- Background colors, text colors, border colors
-- Font sizes and font weights (relative hierarchy)
-- Spacing, padding, margins
-- Visual sections and their boundaries
+--- CURRENT HTML ---
+${html}
 
-FOR TEXT CONTENT: use generic placeholders only:
-- Headings → "[HEADING]"
-- Short labels → "[LABEL]"
-- Body paragraphs → "[BODY TEXT CONTENT]"
-- List items → "[LIST ITEM]"
-- Names/titles → "[NAME]", "[TITLE]"
-Do NOT use any real text from the screenshots.
+--- CURRENT CSS ---
+${css}
 
-TECHNICAL RULES:
-- One <div class="page"> per screenshot (${screenshots.length} total)
-- Each .page: width ${pageW}px, height ${pageH}px, overflow hidden, position relative
-- CSS fully self-contained in <style> tag
-- Use flexbox/grid to match the visible column structure
-
-Return JSON: {"html": "...", "css": "..."}`,
-    },
-  ];
-
-  const result = await model.generateContent(parts);
-  return JSON.parse(result.response.text());
-}
-
-// Agent 2 — Injecte le vrai texte dans le layout aux bons emplacements.
-// Retourne HTML+CSS avec le contenu réel à la place des placeholders.
-export async function placeText(layoutHtml, layoutCss, structuredText, screenshots, feedback) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' },
-  });
-
-  const parts = [
-    ...screenshots.map(s => ({ inlineData: { mimeType: 'image/png', data: s.toString('base64') } })),
-    {
-      text: `You are a web developer. You have:
-1. An HTML/CSS layout skeleton (with placeholder text)
-2. The real text content extracted from the PDF
-3. Screenshots of the original PDF pages (showing exactly where each text appears)
-
-YOUR TASK: Replace every placeholder in the layout with the correct real text, placed at the correct position matching the screenshots.
-
---- HTML LAYOUT SKELETON ---
-${layoutHtml}
-
---- CSS ---
-${layoutCss}
-
---- REAL TEXT CONTENT (extracted from PDF) ---
-${structuredText}
-
-RULES:
-- Keep the exact same HTML structure and CSS — do NOT change layout, colors, or fonts
-- Replace [HEADING], [LABEL], [BODY TEXT CONTENT], [LIST ITEM], [NAME], [TITLE] etc. with the real text
-- Use the screenshots to verify which text goes where
-- Every piece of text from the PDF must appear in the output
-- If a section has multiple items, repeat the HTML pattern for each item${feedback ? `\n\nCORRECTIONS REQUIRED FROM PREVIOUS ATTEMPT:\n${feedback}` : ''}
-
+ABSOLUTE RULES (breaking these ruins the result):
+- Keep EVERY <span class="t"> exactly as-is: never change, move, or delete its
+  inline left/top/font-size, and never remove any span. All text must stay.
+- You MAY change colors (text color, .page background), font-family, font-weight.
+- For colored zones/sidebars/boxes visible in the screenshot: add decorative
+  <div> elements with position:absolute and a LOW z-index (e.g. z-index:0) so they
+  sit BEHIND the text. Give .t a higher stacking by adding "z-index:1" via CSS.
+- Match the page background and any colored side panels precisely (use hex colors
+  sampled from the screenshot).
+- Keep the A4 page dimensions (.page width/height) unchanged.
+${corrections ? `\n--- SPECIFIC FIXES REQUESTED ---\n${corrections}\n` : ''}
 Return JSON: {"html": "...", "css": "..."}`,
     },
   ];

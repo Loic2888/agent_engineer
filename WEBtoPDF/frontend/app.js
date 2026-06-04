@@ -59,7 +59,6 @@ function handleFiles(files) {
 $('btn-convert').addEventListener('click', async () => {
   if (!selectedMode || selectedFiles.length === 0) return;
 
-  $('agent-log').innerHTML = '';
   showSection('progress-section');
 
   const form = new FormData();
@@ -82,10 +81,6 @@ $('btn-convert').addEventListener('click', async () => {
 
   es.onmessage = (e) => {
     const event = JSON.parse(e.data);
-
-    if (event.type === 'progress') {
-      appendLog(event.message);
-    }
 
     if (event.type === 'done') {
       es.close();
@@ -131,15 +126,6 @@ $('btn-convert').addEventListener('click', async () => {
     showSection('error-section');
   };
 });
-
-function appendLog(message) {
-  const log = $('agent-log');
-  const line = document.createElement('div');
-  line.className = 'log-line';
-  line.textContent = message;
-  log.appendChild(line);
-  log.scrollTop = log.scrollHeight;
-}
 
 // Restart buttons
 [$('btn-restart'), $('btn-error-restart')].forEach(btn => {

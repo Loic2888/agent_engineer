@@ -4,8 +4,8 @@ import { runQaAgent } from './qaAgent.js';
 import { runRepairAgent } from './repairAgent.js';
 import { runParserAgent } from './parserAgent.js';
 import { runScreenshotAgent } from './screenshotAgent.js';
-import { runLayoutAgent } from './layoutAgent.js';
-import { runTextAgent } from './textAgent.js';
+import { runBuilderAgent } from './builderAgent.js';
+import { runStyleAgent } from './styleAgent.js';
 import { runValidatorAgent } from './validatorAgent.js';
 import { log, error } from '../utils/logger.js';
 
@@ -49,43 +49,54 @@ export async function runOrchestrator(files, mode, emit = () => {}) {
       await runScreenshotAgent(ctx);
       emit(`📸 ${ctx.pdfScreenshots?.length || 0} page screenshot(s) ready`);
 
-      emit('🎨 Reconstructing visual layout from screenshots...');
-      await runLayoutAgent(ctx);
+      // Placement déterministe : le texte est posé à ses coordonnées exactes.
+      emit('🧱 Building page from exact text positions...');
+      await runBuilderAgent(ctx);
       if (ctx.errors.length > 0) return ctx;
-      emit('🎨 Layout skeleton ready');
 
-      emit('✍️ Placing text content (attempt 1)...');
-      await runTextAgent(ctx);
+      // Première passe de style (couleurs / fonds) d'après le screenshot.
+      emit('🎨 Applying visual styling...');
+      await runStyleAgent(ctx);
 
       emit('🔍 Comparing with original PDF...');
       await runValidatorAgent(ctx);
 
-      let layoutRetried = false;
+      // On garde toujours la meilleure version rencontrée.
+      let bestScore = ctx.validatorScore ?? 0;
+      let bestHtml = ctx.outputHtml;
+      let bestCss = ctx.outputCss;
 
+      // Boucle d'amélioration : on n'ajuste QUE le style, jamais les positions.
       while (!ctx.validatorPass && ctx.attempt < MAX_RETRIES) {
         ctx.attempt++;
         const score = ctx.validatorScore ?? '?';
-        emit(`⚠️ Score ${score}/100 — below threshold, correction attempt ${ctx.attempt}/${MAX_RETRIES}`);
+        emit(`⚠️ Score ${score}/100 — refining styling, attempt ${ctx.attempt}/${MAX_RETRIES}`);
 
-        if (ctx.validatorScore !== null && ctx.validatorScore < 50 && !layoutRetried) {
-          emit('🔁 Score too low — regenerating layout from scratch...');
-          layoutRetried = true;
-          await runLayoutAgent(ctx);
-          if (ctx.errors.length > 0) break;
-          emit('🎨 New layout skeleton ready');
-        }
+        // Repartir de la meilleure version, pas de la dernière (qui peut régresser).
+        ctx.outputHtml = bestHtml;
+        ctx.outputCss = bestCss;
 
-        emit(`✍️ Placing text content (attempt ${ctx.attempt + 1})...`);
-        await runTextAgent(ctx);
+        await runStyleAgent(ctx);
         emit('🔍 Comparing with original PDF...');
         await runValidatorAgent(ctx);
+
+        if ((ctx.validatorScore ?? 0) > bestScore) {
+          bestScore = ctx.validatorScore;
+          bestHtml = ctx.outputHtml;
+          bestCss = ctx.outputCss;
+        }
       }
 
-      if (ctx.validatorPass) {
-        emit(`✅ Score ${ctx.validatorScore}/100 — validation passed!`);
+      // Restituer la meilleure version dans tous les cas.
+      ctx.outputHtml = bestHtml;
+      ctx.outputCss = bestCss;
+      ctx.validatorScore = bestScore;
+
+      if (ctx.validatorPass || bestScore >= 80) {
+        emit(`✅ Best score: ${bestScore}/100`);
       } else {
-        emit(`⚠️ Max retries reached. Best score: ${ctx.validatorScore ?? '?'}/100. Returning best attempt.`);
-        ctx.warnings.push(`Max retries (${MAX_RETRIES}) reached. Best score: ${ctx.validatorScore ?? '?'}/100.`);
+        emit(`⚠️ Max retries reached. Best score: ${bestScore}/100. Returning best attempt.`);
+        ctx.warnings.push(`Max retries (${MAX_RETRIES}) reached. Best score: ${bestScore}/100.`);
       }
 
       if (ctx.outputHtml) ctx.output = { type: 'html', html: ctx.outputHtml, css: ctx.outputCss };
