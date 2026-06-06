@@ -1,169 +1,175 @@
-# WEBtoPDF — Application de conversion agentique
+# WEBtoPDF — Agentic conversion application
 
-Application web complète qui convertit des fichiers dans les deux sens :
+A full web application that converts files in both directions:
 
-- **Mode A** : HTML/CSS → PDF (rendu via Puppeteer)
-- **Mode B** : PDF → HTML/CSS (reconstruction visuelle via IA multi-agents)
+- **Mode A**: HTML/CSS → PDF (rendered via Puppeteer)
+- **Mode B**: PDF → HTML/CSS (visual reconstruction via multi-agent AI)
 
-Le Mode B utilise une architecture **multi-agents**. Le texte est placé de façon **déterministe** à ses coordonnées exactes (extraites du PDF), puis une boucle d'enrichissement visuel (screenshot → Gemini vision → score) ajuste les couleurs et fonds jusqu'à atteindre 80 % de similarité avec le document original. Le texte n'est jamais deviné ni déplacé : il vient directement des positions x/y du PDF.
+Mode B uses a **multi-agent** architecture. Text is placed **deterministically** at its
+exact coordinates (extracted from the PDF), then a visual enrichment loop
+(screenshot → Gemini vision → score) adjusts colors and backgrounds until reaching 80%
+similarity with the original document. Text is never guessed or moved: it comes directly
+from the PDF's x/y positions.
 
 ---
 
-## Sommaire
+## Table of contents
 
-- [Architecture agentique](#architecture-agentique)
-- [Pipeline Mode A — HTML/CSS → PDF](#pipeline-mode-a--htmlcss--pdf)
-- [Pipeline Mode B — PDF → HTMLCSS](#pipeline-mode-b--pdf--htmlcss)
-- [Description des agents](#description-des-agents)
-- [Temps réel — JobStore & SSE](#temps-réel--jobstore--sse)
-- [Stack technique](#stack-technique)
+- [Agentic architecture](#agentic-architecture)
+- [Mode A pipeline — HTML/CSS → PDF](#mode-a-pipeline--htmlcss--pdf)
+- [Mode B pipeline — PDF → HTML/CSS](#mode-b-pipeline--pdf--htmlcss)
+- [Agent descriptions](#agent-descriptions)
+- [Real-time — JobStore & SSE](#real-time--jobstore--sse)
+- [Tech stack](#tech-stack)
 - [Installation](#installation)
-- [Variables d'environnement](#variables-denvironnement)
-- [Lancement](#lancement)
-- [Dépendances](#dépendances)
+- [Environment variables](#environment-variables)
+- [Running](#running)
+- [Dependencies](#dependencies)
 
 ---
 
-## Architecture agentique
+## Agentic architecture
 
 ```
-Requête HTTP
+HTTP request
      │
      ▼
- Orchestrateur
+ Orchestrator
      │
-     ├─ planningAgent    ← analyse la structure du document
-     ├─ parserAgent      ← extrait le texte avec positions x/y exactes
-     ├─ screenshotAgent  ← rend chaque page en image PNG
-     ├─ builderAgent     ← place le texte à ses coordonnées exactes (déterministe)
-     ├─ styleAgent       ← ajoute couleurs/fonds d'après le screenshot
-     └─ validatorAgent   ← compare visuellement, génère les corrections
+     ├─ planningAgent    ← analyzes the document structure
+     ├─ parserAgent      ← extracts text with exact x/y positions
+     ├─ screenshotAgent  ← renders each page to a PNG image
+     ├─ builderAgent     ← places text at its exact coordinates (deterministic)
+     ├─ styleAgent       ← adds colors/backgrounds based on the screenshot
+     └─ validatorAgent   ← compares visually, generates corrections
               │
-              └─ boucle (max 10 retries) — styleAgent uniquement, jusqu'à score ≥ 80 %
+              └─ loop (max 10 retries) — styleAgent only, until score ≥ 80%
 ```
 
-Chaque agent est une fonction `async (ctx) → ctx`. Ils se passent un objet `ctx` (contexte du job) qui accumule les résultats au fil du pipeline.
+Each agent is an `async (ctx) → ctx` function. They pass around a `ctx` object (job
+context) that accumulates results throughout the pipeline.
 
 ---
 
-## Pipeline Mode A — HTML/CSS → PDF
+## Mode A pipeline — HTML/CSS → PDF
 
 ```
 [POST /convert?mode=html-to-pdf]
          │
          ▼
-  planningAgent      → détecte les fichiers HTML/CSS uploadés
+  planningAgent      → detects the uploaded HTML/CSS files
          │
          ▼
-  rendererAgent      → lance Puppeteer (headless Chrome) → génère le PDF
+  rendererAgent      → launches Puppeteer (headless Chrome) → generates the PDF
          │
          ▼
-  qaAgent            → vérifie que le PDF n'est pas vide (taille, pages)
+  qaAgent            → checks the PDF is not empty (size, pages)
          │
-         ├─ OK  → retourne le PDF
+         ├─ OK  → returns the PDF
          │
-         └─ KO  → repairAgent → Gemini corrige le CSS (@page, page-break)
-                      └─ retry rendererAgent + qaAgent (max 8 fois)
+         └─ KO  → repairAgent → Gemini fixes the CSS (@page, page-break)
+                      └─ retry rendererAgent + qaAgent (max 8 times)
 ```
 
 ---
 
-## Pipeline Mode B — PDF → HTML/CSS
+## Mode B pipeline — PDF → HTML/CSS
 
 ```
 [POST /convert?mode=pdf-to-html]
          │
          ▼
-  planningAgent      → analyse la structure visuelle via pdfjs-dist
-                        (nombre de colonnes, frontière, tailles de police)
+  planningAgent      → analyzes the visual structure via pdfjs-dist
+                        (column count, boundary, font sizes)
          │
          ▼
-  parserAgent        → extrait le texte avec positions x/y exactes par page
-                        + dimensions de chaque page (positionedItems)
+  parserAgent        → extracts text with exact x/y positions per page
+                        + each page's dimensions (positionedItems)
          │
          ▼
-  screenshotAgent    → rend chaque page PDF sur un <canvas> via pdfjs
-                        → screenshot PNG de chaque page (référence visuelle)
+  screenshotAgent    → renders each PDF page to a <canvas> via pdfjs
+                        → PNG screenshot of each page (visual reference)
          │
          ▼
-  builderAgent       → place CHAQUE texte à sa position exacte (x/y/fontSize)
-                        → <span> en position:absolute, aucun LLM
-                        → tout le texte présent, aucune perte possible
-                        → format A4 conservé
+  builderAgent       → places EACH text at its exact position (x/y/fontSize)
+                        → <span> in position:absolute, no LLM
+                        → all text present, no loss possible
+                        → A4 format preserved
          │
          ▼
-  styleAgent         → envoie le HTML + screenshot à Gemini vision
-                        → ajoute couleurs, fonds, sidebars, polices
-                        → NE déplace ni ne supprime aucun texte
-                        → garde-fou : rejet si du texte disparaît
+  styleAgent         → sends the HTML + screenshot to Gemini vision
+                        → adds colors, backgrounds, sidebars, fonts
+                        → does NOT move or remove any text
+                        → guardrail: rejected if any text disappears
          │
          ▼
-  validatorAgent     → screenshot du HTML rendu (même dimensions que le PDF)
-                        → compare avec screenshot PDF via Gemini vision
-                        → score 0–100 + liste de corrections précises
+  validatorAgent     → screenshot of the rendered HTML (same dimensions as the PDF)
+                        → compares with the PDF screenshot via Gemini vision
+                        → score 0–100 + list of precise corrections
          │
-         ├─ score ≥ 80 % → retourne le HTML/CSS ✅
+         ├─ score ≥ 80% → returns the HTML/CSS ✅
          │
-         └─ score < 80 % → corrections envoyées à styleAgent → retry
-                            (le placement du texte reste figé, seul
-                             le style est ajusté à chaque itération)
+         └─ score < 80% → corrections sent to styleAgent → retry
+                            (text placement stays fixed, only the
+                             style is adjusted at each iteration)
 ```
 
 ---
 
-## Description des agents
+## Agent descriptions
 
 ### `planningAgent`
-Analyse le premier fichier PDF avec `pdfjs-dist` pour détecter :
-- Le nombre de pages
-- La présence d'une mise en page multi-colonnes (détection du gap horizontal dans les positions x des blocs de texte)
-- La frontière entre les colonnes (en pixels)
-- Le seuil de taille de police pour distinguer titres et texte courant
+Analyzes the first PDF file with `pdfjs-dist` to detect:
+- The number of pages
+- The presence of a multi-column layout (detecting the horizontal gap in the x positions of text blocks)
+- The boundary between columns (in pixels)
+- The font-size threshold to distinguish headings from body text
 
 ### `parserAgent`
-Extrait tout le texte du PDF page par page via `pdfjs-dist`, avec les coordonnées x/y de chaque bloc. Groupe les blocs :
-- Par colonne (gauche si `x < frontière`, droite sinon)
-- Par ligne (même y ± 3pt)
-- Par type (titre si `fontSize ≥ seuil`, sinon body)
+Extracts all text from the PDF page by page via `pdfjs-dist`, with the x/y coordinates of each block. Groups blocks:
+- By column (left if `x < boundary`, right otherwise)
+- By line (same y ± 3pt)
+- By type (heading if `fontSize ≥ threshold`, otherwise body)
 
-Expose les données brutes positionnées (`positionedItems` : texte + `x/y/fontSize` + page) et les dimensions de chaque page, consommées par le `builderAgent` pour le placement déterministe.
+Exposes the raw positioned data (`positionedItems`: text + `x/y/fontSize` + page) and each page's dimensions, consumed by the `builderAgent` for deterministic placement.
 
 ### `screenshotAgent`
-Lance un navigateur Puppeteer headless. Charge `pdfjs-dist` depuis le serveur Express (`/pdfjs/...`) dans une page HTML, rend chaque page PDF sur un `<canvas>`, puis prend un screenshot PNG. Ces images servent de **référence visuelle** pour le `styleAgent` et le `validatorAgent`.
+Launches a headless Puppeteer browser. Loads `pdfjs-dist` from the Express server (`/pdfjs/...`) in an HTML page, renders each PDF page to a `<canvas>`, then takes a PNG screenshot. These images serve as the **visual reference** for the `styleAgent` and `validatorAgent`.
 
 ### `builderAgent`
-**Aucun LLM.** Construit le HTML/CSS directement à partir des coordonnées exactes extraites par le `parserAgent`. Chaque morceau de texte devient un `<span class="t">` en `position: absolute`, placé à sa position exacte :
-- `left = x`, `top = hauteurPage − y − fontSize` (conversion repère PDF bas-gauche → HTML haut-gauche)
-- `font-size = fontSize`, graisse renforcée pour les titres
-- Page en format A4 exact, fond blanc par défaut
+**No LLM.** Builds the HTML/CSS directly from the exact coordinates extracted by the `parserAgent`. Each piece of text becomes a `<span class="t">` in `position: absolute`, placed at its exact position:
+- `left = x`, `top = pageHeight − y − fontSize` (conversion from PDF bottom-left origin → HTML top-left)
+- `font-size = fontSize`, heavier weight for headings
+- Page in exact A4 format, white background by default
 
-Comme chaque texte est posé à sa coordonnée, **aucun texte ne peut être perdu ni mal placé** — c'est déterministe et reproductible. C'est ce qui garantit une base de fidélité élevée avant même toute itération.
+Since each text is laid at its coordinate, **no text can be lost or misplaced** — it is deterministic and reproducible. This is what guarantees a high-fidelity baseline before any iteration.
 
 ### `styleAgent`
-Envoie le HTML déterministe + le screenshot PDF à **Gemini 2.5 Flash** (multimodal). Gemini ajoute uniquement la **couche visuelle** : couleurs de texte, fonds de page, panneaux/sidebars colorés (via des `<div>` décoratifs placés *derrière* le texte), polices et graisses. Consigne stricte : ne jamais déplacer ni supprimer un `<span>` de texte. Un **garde-fou** compte les spans avant/après : si plus de 5 % du texte disparaît, la sortie est rejetée et la version précédente conservée. En cas de retry, reçoit la liste de corrections du `validatorAgent`.
+Sends the deterministic HTML + the PDF screenshot to **Gemini 2.5 Flash** (multimodal). Gemini adds only the **visual layer**: text colors, page backgrounds, colored panels/sidebars (via decorative `<div>`s placed *behind* the text), fonts and weights. Strict instruction: never move or remove a text `<span>`. A **guardrail** counts the spans before/after: if more than 5% of the text disappears, the output is rejected and the previous version is kept. On retry, it receives the `validatorAgent`'s list of corrections.
 
 ### `validatorAgent`
-1. Rend le HTML/CSS dans Puppeteer avec un viewport calé sur les dimensions exactes de la page PDF
-2. Prend un screenshot du rendu HTML
-3. Envoie les deux images (PDF original + HTML rendu) à Gemini vision
-4. Gemini retourne un **score 0–100** et une **liste de corrections précises** (ex : `"Left sidebar background should be #1e2b3c, currently white"`)
-5. Si `score < threshold` → corrections transmises au `styleAgent` pour un nouveau cycle (le placement du texte reste figé)
+1. Renders the HTML/CSS in Puppeteer with a viewport matched to the exact PDF page dimensions
+2. Takes a screenshot of the HTML render
+3. Sends both images (original PDF + rendered HTML) to Gemini vision
+4. Gemini returns a **score 0–100** and a **list of precise corrections** (e.g. `"Left sidebar background should be #1e2b3c, currently white"`)
+5. If `score < threshold` → corrections passed to the `styleAgent` for a new cycle (text placement stays fixed)
 
-### `repairAgent` *(Mode A uniquement)*
-Utilisé quand le PDF généré par Puppeteer échoue la validation QA. Envoie les erreurs et le CSS original à Gemini qui génère un CSS de correction ciblé sur les problèmes de `@page`, `page-break`, et layout d'impression.
+### `repairAgent` *(Mode A only)*
+Used when the PDF generated by Puppeteer fails QA validation. Sends the errors and the original CSS to Gemini, which generates a corrective CSS targeting `@page`, `page-break`, and print layout issues.
 
-### `qaAgent` *(Mode A uniquement)*
-Vérifie que le PDF généré n'est pas vide (taille minimale en octets, accessibilité du fichier).
+### `qaAgent` *(Mode A only)*
+Checks that the generated PDF is not empty (minimum size in bytes, file accessibility).
 
 ---
 
-## Temps réel — JobStore & SSE
+## Real-time — JobStore & SSE
 
-La conversion peut durer **30 secondes à 3 minutes** selon le nombre de pages et de retries. Pour éviter que le navigateur attende en silence :
+Conversion can take **30 seconds to 3 minutes** depending on the number of pages and
+retries. To avoid the browser waiting silently:
 
-1. `POST /convert` retourne immédiatement un `{ jobId }` et lance le traitement en arrière-plan
-2. Le frontend ouvre une connexion **Server-Sent Events** sur `GET /status/:jobId`
-3. Chaque action des agents émet un message en temps réel :
+1. `POST /convert` returns a `{ jobId }` immediately and starts processing in the background
+2. The frontend opens a **Server-Sent Events** connection on `GET /status/:jobId`
+3. Each agent action emits a real-time message:
 
 ```
 📋 Analyzing PDF structure...
@@ -184,121 +190,125 @@ La conversion peut durer **30 secondes à 3 minutes** selon le nombre de pages e
 ✅ Score 93/100 — validation passed!
 ```
 
-Le `jobStore` est un bus d'événements en mémoire (`Map`) qui stocke les messages et les diffuse à tous les clients SSE connectés. Les jobs sont supprimés automatiquement 2 minutes après leur fin.
+The `jobStore` is an in-memory event bus (`Map`) that stores messages and broadcasts
+them to all connected SSE clients. Jobs are automatically removed 2 minutes after they
+finish.
 
 ---
 
-## Stack technique
+## Tech stack
 
-| Couche | Technologie |
+| Layer | Technology |
 |---|---|
 | Runtime | Node.js 20 (Alpine) |
 | Web framework | Express 5 |
 | PDF rendering | Puppeteer-core + Chromium |
 | PDF parsing | pdfjs-dist 3.x + pdf-parse |
 | LLM / Vision | Google Gemini 2.5 Flash (`@google/generative-ai`) |
-| Temps réel | Server-Sent Events (SSE natif) |
+| Real-time | Server-Sent Events (native SSE) |
 | Frontend | Vanilla HTML/CSS/JS |
-| Conteneurisation | Docker Compose |
+| Containerization | Docker Compose |
 
 ---
 
 ## Installation
 
-### Prérequis
+### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé et démarré
-- Une clé API Google Gemini ([Google AI Studio](https://aistudio.google.com/))
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- A Google Gemini API key ([Google AI Studio](https://aistudio.google.com/))
 
-### 1. Cloner / récupérer le projet
+### 1. Clone / get the project
 
 ```bash
 git clone <repo-url>
 cd WEBtoPDF
 ```
 
-### 2. Configurer les variables d'environnement
+### 2. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Ouvrir `.env` et renseigner la clé API :
+Open `.env` and set the API key:
 
 ```env
 GEMINI_API_KEY=your_key_here
 ```
 
-### 3. Lancer l'application
+### 3. Launch the application
 
-**Windows** — double-cliquer sur `start.bat`
+**Windows** — double-click `start.bat`
 
-**Linux / macOS** :
+**Linux / macOS**:
 ```bash
 docker compose up --build
 ```
 
-L'application est disponible sur **http://localhost:3002**
+The application is available at **http://localhost:3002**
 
 ---
 
-## Variables d'environnement
+## Environment variables
 
-| Variable | Défaut | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | — | Clé API Google Gemini (obligatoire) |
-| `PORT` | `3002` | Port d'écoute du serveur |
-| `MAX_RETRIES` | `8` | Nombre maximum de tentatives de correction |
-| `UPLOAD_SIZE_LIMIT` | `50mb` | Taille maximale des fichiers uploadés |
-| `VISUAL_SIMILARITY_THRESHOLD` | `80` | Score minimum (0–100) pour valider le résultat |
+| `GEMINI_API_KEY` | — | Google Gemini API key (required) |
+| `PORT` | `3002` | Server listening port |
+| `MAX_RETRIES` | `8` | Maximum number of correction attempts |
+| `UPLOAD_SIZE_LIMIT` | `50mb` | Maximum uploaded file size |
+| `VISUAL_SIMILARITY_THRESHOLD` | `80` | Minimum score (0–100) to validate the result |
 
 ---
 
-## Lancement
+## Running
 
 ```bash
-# Démarrer (avec rebuild de l'image)
+# Start (rebuilding the image)
 docker compose up --build
 
-# Démarrer sans rebuild (plus rapide si le code n'a pas changé)
+# Start without rebuilding (faster if the code hasn't changed)
 docker compose up
 
-# Arrêter
+# Stop
 docker compose down
 
-# Voir les logs en temps réel
+# Follow logs in real time
 docker compose logs -f
 ```
 
 ---
 
-## Dépendances
+## Dependencies
 
-Ce projet est **Node.js**. Le fichier `backend/package.json` est l'équivalent d'un `requirements.txt` Python — il liste toutes les dépendances npm.
+This project is **Node.js**. The `backend/package.json` file is the equivalent of a
+Python `requirements.txt` — it lists all the npm dependencies.
 
-### Dépendances applicatives (`backend/package.json`)
+### Application dependencies (`backend/package.json`)
 
-| Package | Version | Rôle |
+| Package | Version | Role |
 |---|---|---|
-| `express` | ^5.0.0 | Serveur web, routing, SSE |
-| `multer` | ^1.4.5-lts.1 | Upload de fichiers multipart |
-| `puppeteer-core` | ^22.0.0 | Pilotage de Chromium (rendu PDF, screenshots) |
-| `@google/generative-ai` | ^0.21.0 | SDK Gemini (vision, génération JSON) |
-| `pdf-parse` | ^1.1.1 | Extraction de texte brut depuis PDF |
-| `pdfjs-dist` | ^3.11.174 | Extraction de texte positionné + rendu canvas |
-| `uuid` | ^9.0.0 | Génération d'identifiants uniques (jobs, fichiers) |
+| `express` | ^5.0.0 | Web server, routing, SSE |
+| `multer` | ^1.4.5-lts.1 | Multipart file upload |
+| `puppeteer-core` | ^22.0.0 | Chromium control (PDF rendering, screenshots) |
+| `@google/generative-ai` | ^0.21.0 | Gemini SDK (vision, JSON generation) |
+| `pdf-parse` | ^1.1.1 | Raw text extraction from PDF |
+| `pdfjs-dist` | ^3.11.174 | Positioned text extraction + canvas rendering |
+| `uuid` | ^9.0.0 | Unique identifier generation (jobs, files) |
 
-### Dépendances système (installées via Docker / Alpine)
+### System dependencies (installed via Docker / Alpine)
 
-| Package | Rôle |
+| Package | Role |
 |---|---|
-| `chromium` | Navigateur headless utilisé par Puppeteer |
+| `chromium` | Headless browser used by Puppeteer |
 
-Ces dépendances système sont gérées automatiquement dans le `Dockerfile` — aucune installation manuelle nécessaire.
+These system dependencies are managed automatically in the `Dockerfile` — no manual
+installation needed.
 
-### Installation des dépendances npm (hors Docker)
+### Installing npm dependencies (outside Docker)
 
-Si tu veux faire tourner le backend hors Docker :
+If you want to run the backend outside Docker:
 
 ```bash
 cd backend
@@ -306,4 +316,5 @@ npm install
 node src/index.js
 ```
 
-> **Note** : hors Docker, Chromium doit être installé séparément sur le système, et `PUPPETEER_EXECUTABLE_PATH` doit pointer vers son exécutable.
+> **Note**: outside Docker, Chromium must be installed separately on the system, and
+> `PUPPETEER_EXECUTABLE_PATH` must point to its executable.

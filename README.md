@@ -13,6 +13,7 @@ Each project lives in its own folder with its own stack, README, and `CLAUDE.md`
 | [`deep-research`](./deep-research/) | Multi-agent pipeline that researches any topic and generates a structured Markdown report with citations | Python · FastAPI · LangGraph · Gemini · Tavily · React | ✅ Done |
 | [`invoice-processing`](./invoice-processing/) | Agentic pipeline that classifies documents and extracts invoice fields (issuer, amount, due date) into a database | Node.js · Express · Gemini · SQLite · Docker | ✅ Done |
 | [`WEBtoPDF`](./WEBtoPDF/) | Multi-agent pipeline that converts PDF → HTML/CSS using deterministic text placement (exact x/y coordinates) plus a Gemini visual-styling loop that iterates until ≥ 80% similarity, and HTML/CSS → PDF via Puppeteer | Node.js · Express · Puppeteer · pdfjs-dist · Gemini · SSE · Docker | ✅ Done |
+| [`mail-response`](./mail-response/) | Agentic pipeline that reads Gmail customer emails, triages them, identifies the sender (vector memory), extracts intent, and generates a vouvoiement reply for human review before sending | Python · FastAPI · LangGraph · Gemini · ChromaDB · Gmail API · React · Docker | ✅ Done |
 
 ---
 
@@ -62,6 +63,12 @@ agent_engineer/
 │   ├── CLAUDE.md
 │   ├── backend/            # Express + agent pipeline + JobStore + SSE
 │   ├── frontend/           # Vanilla UI with progress spinner
+│   ├── docker-compose.yml
+│   └── start.bat           # Windows one-click launcher
+├── mail-response/          # Project 4 — agentic Gmail customer-reply agent
+│   ├── CLAUDE.md
+│   ├── backend/            # FastAPI + LangGraph pipeline + ChromaDB memory
+│   ├── frontend/           # React + TypeScript review UI
 │   ├── docker-compose.yml
 │   └── start.bat           # Windows one-click launcher
 └── ...                     # Future projects

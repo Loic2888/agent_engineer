@@ -330,7 +330,56 @@ class AgentState(TypedDict):
 ## Premier lancement — checklist
 
 - [ ] Copier `.env.example` → `.env` et renseigner `GEMINI_API_KEY` et `GMAIL_USER`
-- [ ] Placer `gmail_credentials.json` dans `credentials/` (depuis Google Cloud Console)
-- [ ] Lancer `start.bat` (Windows) ou `docker-compose up --build` (Linux/Mac)
-- [ ] Ouvrir `http://localhost:8000/docs` pour autoriser l'OAuth2 Gmail au premier run
-- [ ] L'interface est disponible sur `http://localhost:3000`
+- [ ] Placer `gmail_credentials.json` (type **OAuth client desktop / "installed"**) dans `credentials/` (depuis Google Cloud Console)
+- [ ] Lancer `start.bat` (Windows) ou `docker compose up --build` (Linux/Mac)
+- [ ] **Autoriser Gmail une seule fois** (voir section ci-dessous) — sans ça, l'inbox renvoie une erreur 500 « Autorisation Gmail requise »
+- [ ] L'interface est disponible sur `http://localhost:3004`
+
+---
+
+## Autorisation OAuth2 Gmail (étape unique)
+
+L'autorisation Gmail ne peut **pas** se faire automatiquement : le conteneur Docker
+n'a pas de navigateur, et le flux OAuth « installed app » exige une connexion
+interactive au compte Google. Cette étape est donc **manuelle et unique** — une fois
+le `token.json` généré, il est réutilisé (refresh automatique) sans navigateur.
+
+### Procédure
+
+1. Depuis le dossier du projet, lancer le script d'autorisation dédié
+   (`backend/gmail/authorize.py`), avec le port `8765` publié :
+
+   ```bash
+   docker compose run --rm -p 8765:8765 backend python -m backend.gmail.authorize
+   ```
+
+2. Le script affiche une **URL** — l'ouvrir dans le navigateur de l'hôte.
+3. Se connecter au compte Gmail (`GMAIL_USER`) et autoriser l'accès.
+4. Le `token.json` est écrit dans `credentials/` (monté en volume → persistant).
+5. Relancer l'application (`start.bat` ou `docker compose up -d`).
+
+### Points importants
+
+- Le compte doit être ajouté dans **Utilisateurs de test** de l'écran de consentement
+  OAuth (Google Cloud Console) tant que l'app est en mode « test », sinon Google bloque.
+- À l'exécution normale, `gmail/auth.py` ne tente **jamais** d'ouvrir un navigateur :
+  si le token est absent/invalide et non rafraîchissable, il lève une erreur explicite
+  rappelant la commande ci-dessus.
+- Ne **jamais** commiter `credentials/token.json` ni `credentials/gmail_credentials.json`
+  (déjà couverts par `.gitignore`).
+
+---
+
+## Notes de déploiement (Docker)
+
+- **Ports** : le backend est exposé sur `BACKEND_PORT` (défaut `8000`, mais `8002` dans
+  cet environnement car `8000`/`8001` sont déjà pris par d'autres projets) et le frontend
+  sur `FRONTEND_PORT` (`3004`). Le frontend dérive son `VITE_API_URL` de `BACKEND_PORT`.
+- **Code source dans l'image** : le code backend est copié dans l'image sous `/app/backend`
+  (et `PYTHONPATH=/app`, d'où les imports `from backend.xxx`). Le bind-mount du code source
+  a été **retiré** volontairement : lancé depuis Windows sur un chemin WSL (`\\wsl.localhost\…`),
+  Docker Desktop corrompt le chemin du bind et masque le code par un dossier vide. Sans mount,
+  le code de l'image est toujours utilisé → comportement identique depuis Windows et WSL.
+  Conséquence : pas de hot-reload ; après modification du backend, faire `docker compose build backend`.
+- **`start.bat`** : commence par `pushd "%~dp0"` pour gérer les chemins UNC (`\\wsl.localhost\…`)
+  et se placer dans le dossier du projet.

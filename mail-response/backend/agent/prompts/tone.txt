@@ -1,0 +1,20 @@
+Analyse le ton et le registre de l'email suivant afin de déterminer le style de réponse approprié.
+
+Critères d'évaluation :
+- Formules de politesse utilisées
+- Vocabulaire (soutenu, courant, familier)
+- Présence de majuscules, ponctuation correcte
+- Longueur et structure des phrases
+
+Retourne UNIQUEMENT un objet JSON :
+{
+  "tone": "formel",
+  "justification": "L'expéditeur utilise des formules de politesse soutenues et un vocabulaire professionnel."
+}
+
+Valeurs possibles pour tone : "formel", "semi-formel"
+
+Email :
+---
+{body}
+---

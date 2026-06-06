@@ -1,0 +1,35 @@
+services:
+  backend:
+    build: ./backend
+    container_name: email_agent_backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./credentials:/app/backend/credentials
+      - chromadb_data:/app/backend/chromadb
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - chromadb
+
+  frontend:
+    build: ./frontend
+    container_name: email_agent_frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8000}
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: email_agent_chroma
+    volumes:
+      - chromadb_data:/chroma/chroma
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+volumes:
+  chromadb_data:
