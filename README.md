@@ -14,6 +14,7 @@ Each project lives in its own folder with its own stack, README, and `CLAUDE.md`
 | [`invoice-processing`](./invoice-processing/) | Agentic pipeline that classifies documents and extracts invoice fields (issuer, amount, due date) into a database | Node.js · Express · Gemini · SQLite · Docker | ✅ Done |
 | [`WEBtoPDF`](./WEBtoPDF/) | Multi-agent pipeline that converts PDF → HTML/CSS using deterministic text placement (exact x/y coordinates) plus a Gemini visual-styling loop that iterates until ≥ 80% similarity, and HTML/CSS → PDF via Puppeteer | Node.js · Express · Puppeteer · pdfjs-dist · Gemini · SSE · Docker | ✅ Done |
 | [`mail-response`](./mail-response/) | Agentic pipeline that reads Gmail customer emails, triages them, identifies the sender (vector memory), extracts intent, and generates a vouvoiement reply for human review before sending | Python · FastAPI · LangGraph · Gemini · ChromaDB · Gmail API · React · Docker | ✅ Done |
+| [`ASKtoDB`](./ASKtoDB/) | Natural language to SQL agent — ask questions about any database in plain English or French, get human-readable answers. Supports PostgreSQL, MySQL, SQLite, MSSQL with a read-only safety layer and in-app DB connection management | Python · FastAPI · LangGraph · Gemini · SQLAlchemy · React · Docker | ✅ Done |
 
 ---
 
@@ -69,6 +70,12 @@ agent_engineer/
 │   ├── CLAUDE.md
 │   ├── backend/            # FastAPI + LangGraph pipeline + ChromaDB memory
 │   ├── frontend/           # React + TypeScript review UI
+│   ├── docker-compose.yml
+│   └── start.bat           # Windows one-click launcher
+├── ASKtoDB/                # Project 5 — NL-to-SQL agent with universal DB support
+│   ├── CLAUDE.md
+│   ├── backend/            # FastAPI + LangGraph pipeline + SQLAlchemy
+│   ├── frontend/           # React + TypeScript chat UI + DB connection panel
 │   ├── docker-compose.yml
 │   └── start.bat           # Windows one-click launcher
 └── ...                     # Future projects
