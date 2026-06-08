@@ -246,7 +246,9 @@ GEMINI_API_KEY=your_key_here
 docker compose up --build
 ```
 
-The application is available at **http://localhost:3002**
+The application is available at **http://localhost:3000**
+
+> The port is configurable via `PORT` in `.env` (default `3000`).
 
 ---
 

@@ -70,7 +70,8 @@ email-agent/
 ├── .env                        # Variables d'environnement (ne pas commiter)
 ├── .env.example
 ├── docker-compose.yml
-├── start.bat                   # Lancement Windows double-clic
+├── start.bat                   # Wrapper Windows double-clic → exécute start.sh dans WSL
+├── start.sh                    # Lanceur réel (build + up + ouverture navigateur)
 │
 ├── backend/
 │   ├── Dockerfile
@@ -136,9 +137,10 @@ GEMINI_MODEL=gemini-2.5-flash
 # Gmail
 GMAIL_USER=your@gmail.com
 
-# App
+# App — ports exposés sur la machine hôte (changez-les si déjà utilisés)
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
+CHROMA_PORT=8001
 LOG_LEVEL=INFO
 ```
 
@@ -147,8 +149,6 @@ LOG_LEVEL=INFO
 ## `docker-compose.yml`
 
 ```yaml
-version: "3.9"
-
 services:
   backend:
     build: ./backend
@@ -156,9 +156,8 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
-      - ./credentials:/app/credentials
-      - chromadb_data:/app/chromadb
-      - ./backend:/app
+      - ./credentials:/app/backend/credentials
+      - chromadb_data:/app/backend/chromadb
     env_file:
       - .env
     restart: unless-stopped
@@ -180,66 +179,36 @@ services:
     volumes:
       - chromadb_data:/chroma/chroma
     ports:
-      - "8001:8000"
+      - "${CHROMA_PORT:-8001}:8000"
     restart: unless-stopped
 
 volumes:
   chromadb_data:
 ```
 
+> Le bind-mount du code source (`./backend:/app`) a été **retiré** : lancé depuis
+> Windows sur un chemin WSL, Docker Desktop corrompt le bind et masque le code.
+> Le code de l'image (copié sous `/app/backend`) est donc toujours utilisé.
+
 ---
 
-## `start.bat` (Windows — double-clic)
+## Lancement — `start.bat` + `start.sh`
 
-```bat
-@echo off
-title Email Agent — Démarrage
-color 0A
+Le projet vit sur le système de fichiers WSL (`\\wsl.localhost\…`). Lancer Docker
+directement depuis Windows corromprait les chemins (bind mounts → `Z:\…` vides).
+Pour éviter ça, **`start.bat` n'est qu'un wrapper** : il convertit le chemin du
+projet en chemin Linux puis exécute le vrai lanceur **`start.sh` dans WSL**, où
+Docker s'exécute avec des chemins corrects.
 
-echo ============================================
-echo   EMAIL AGENT — Lancement de l'application
-echo ============================================
-echo.
+- **`start.sh`** (lanceur réel, exécuté dans WSL) : vérifie Docker + `.env`, lance
+  `docker compose up -d --build`, lit `FRONTEND_PORT` dans `.env`, puis ouvre le
+  navigateur Windows via `explorer.exe`.
+- **`start.bat`** (Windows double-clic) : reconstruit le chemin Linux du projet à
+  partir de `%~dp0` (retire le préfixe `\\wsl.localhost\<distro>\`, convertit les
+  `\` en `/`) et appelle `wsl -e bash -lc "'<chemin>/start.sh'"`.
 
-REM Vérification Docker Desktop
-docker info >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERREUR] Docker Desktop n'est pas lancé.
-    echo Veuillez démarrer Docker Desktop puis relancer ce fichier.
-    pause
-    exit /b 1
-)
-
-REM Vérification fichier .env
-if not exist ".env" (
-    echo [ERREUR] Fichier .env manquant.
-    echo Copiez .env.example en .env et renseignez vos clés API.
-    pause
-    exit /b 1
-)
-
-echo [1/3] Construction des images Docker...
-docker-compose build --quiet
-
-echo [2/3] Démarrage des conteneurs...
-docker-compose up -d
-
-echo [3/3] Attente de disponibilité...
-timeout /t 5 /nobreak >nul
-
-echo.
-echo ============================================
-echo   Application disponible :
-echo   Frontend  : http://localhost:3000
-echo   Backend   : http://localhost:8000
-echo   API Docs  : http://localhost:8000/docs
-echo ============================================
-echo.
-echo Appuyez sur une touche pour ouvrir le navigateur...
-pause >nul
-
-start http://localhost:3000
-```
+> Prérequis : WSL + intégration WSL de Docker Desktop. Sous Linux/macOS, lancer
+> directement `./start.sh`.
 
 ---
 
@@ -333,7 +302,7 @@ class AgentState(TypedDict):
 - [ ] Placer `gmail_credentials.json` (type **OAuth client desktop / "installed"**) dans `credentials/` (depuis Google Cloud Console)
 - [ ] Lancer `start.bat` (Windows) ou `docker compose up --build` (Linux/Mac)
 - [ ] **Autoriser Gmail une seule fois** (voir section ci-dessous) — sans ça, l'inbox renvoie une erreur 500 « Autorisation Gmail requise »
-- [ ] L'interface est disponible sur `http://localhost:3004`
+- [ ] L'interface est disponible sur `http://localhost:3000` (défaut ; `3004` dans cet environnement via `.env`)
 
 ---
 
@@ -372,14 +341,17 @@ le `token.json` généré, il est réutilisé (refresh automatique) sans navigat
 
 ## Notes de déploiement (Docker)
 
-- **Ports** : le backend est exposé sur `BACKEND_PORT` (défaut `8000`, mais `8002` dans
-  cet environnement car `8000`/`8001` sont déjà pris par d'autres projets) et le frontend
-  sur `FRONTEND_PORT` (`3004`). Le frontend dérive son `VITE_API_URL` de `BACKEND_PORT`.
+- **Ports** : `BACKEND_PORT` (défaut `8000`), `FRONTEND_PORT` (défaut `3000`) et
+  `CHROMA_PORT` (défaut `8001`) sont configurables dans `.env`. Dans cet environnement :
+  `8002` / `3004` car `8000`/`8001`/`3000` sont pris par d'autres projets. Le frontend
+  dérive son `VITE_API_URL` de `BACKEND_PORT`.
 - **Code source dans l'image** : le code backend est copié dans l'image sous `/app/backend`
   (et `PYTHONPATH=/app`, d'où les imports `from backend.xxx`). Le bind-mount du code source
   a été **retiré** volontairement : lancé depuis Windows sur un chemin WSL (`\\wsl.localhost\…`),
   Docker Desktop corrompt le chemin du bind et masque le code par un dossier vide. Sans mount,
   le code de l'image est toujours utilisé → comportement identique depuis Windows et WSL.
   Conséquence : pas de hot-reload ; après modification du backend, faire `docker compose build backend`.
-- **`start.bat`** : commence par `pushd "%~dp0"` pour gérer les chemins UNC (`\\wsl.localhost\…`)
-  et se placer dans le dossier du projet.
+- **Lancement** : `start.bat` est un wrapper Windows qui reconstruit le chemin Linux
+  du projet et exécute `start.sh` **dans WSL** (`wsl -e bash -lc`), pour que Docker
+  tourne avec des chemins corrects (bind mounts credentials/chromadb intacts). Sous
+  Linux/WSL, lancer directement `./start.sh`.

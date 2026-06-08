@@ -156,11 +156,15 @@ credentials/gmail_credentials.json
 
 ### 3. Launch the application
 
-**Windows**: double-click `start.bat`.
+**Windows**: double-click `start.bat`. It runs the Docker commands **through WSL**
+(via `start.sh`) so the project paths resolve correctly — required when the project
+lives on the WSL filesystem (`\\wsl.localhost\…`). Needs WSL + Docker Desktop's WSL
+integration.
 
 **Linux / macOS / WSL**:
 
 ```bash
+./start.sh          # or:
 docker compose up --build
 ```
 
@@ -185,9 +189,12 @@ docker compose run --rm -p 8765:8765 backend python -m backend.gmail.authorize
 
 ### 5. Open the interface
 
-- **UI**: http://localhost:3004
-- **API**: http://localhost:8002
-- **API docs (Swagger)**: http://localhost:8002/docs
+- **UI**: http://localhost:3000
+- **API**: http://localhost:8000
+- **API docs (Swagger)**: http://localhost:8000/docs
+
+> Ports are configurable in `.env` (`FRONTEND_PORT`, `BACKEND_PORT`, `CHROMA_PORT`;
+> defaults `3000` / `8000` / `8001`).
 
 ---
 

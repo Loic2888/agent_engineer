@@ -113,7 +113,9 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 **4. Open the app**
 
-Go to [http://localhost:3005](http://localhost:3005)
+Go to [http://localhost:3000](http://localhost:3000)
+
+> Ports are configurable in `.env` (`FRONTEND_PORT`, `BACKEND_PORT`; defaults `3000` / `8000`).
 
 **5. Connect your database**
 

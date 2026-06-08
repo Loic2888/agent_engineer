@@ -62,7 +62,9 @@ docker compose up --build -d
 
 ### 3. Open the web interface
 
-[http://localhost:3001](http://localhost:3001)
+[http://localhost:3000](http://localhost:3000)
+
+> The port is configurable via `PORT` in `.env` (default `3000`).
 
 ### 4. Stop the container
 
@@ -79,7 +81,7 @@ The script will:
 1. Check that Docker Desktop is installed
 2. Create `.env` from `.env.example` if it does not exist (and open it in Notepad so you can fill in your key)
 3. Run `docker compose up --build -d`
-4. Open [http://localhost:3001](http://localhost:3001) in your default browser
+4. Open [http://localhost:3000](http://localhost:3000) in your default browser
 
 ---
 
@@ -113,7 +115,7 @@ npm start
 ```
 
 The app listens on the port defined by `PORT` in `.env` (default `3001`).  
-Open [http://localhost:3001](http://localhost:3001).
+Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -184,7 +186,7 @@ Content-Type: multipart/form-data
 **Example with curl:**
 
 ```bash
-curl -X POST http://localhost:3001/invoices/upload \
+curl -X POST http://localhost:3000/invoices/upload \
   -F "file=@invoice.pdf"
 ```
 
