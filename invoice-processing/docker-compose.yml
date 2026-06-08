@@ -2,11 +2,11 @@ services:
   invoice-agent:
     build: .
     ports:
-      - "3001:3001"
+      - "${PORT:-3000}:${PORT:-3000}"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DATABASE_URL=/app/data/invoices.db
-      - PORT=3001
+      - PORT=${PORT:-3000}
     volumes:
       - invoice_data:/app/data
     restart: unless-stopped

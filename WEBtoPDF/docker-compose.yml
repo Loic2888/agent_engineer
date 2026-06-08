@@ -1,11 +1,10 @@
-version: "3.8"
 services:
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "3002:3002"
+      - "${PORT:-3000}:${PORT:-3000}"
     env_file: .env
     volumes:
       - ./backend/uploads:/app/uploads

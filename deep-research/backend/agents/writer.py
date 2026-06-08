@@ -4,11 +4,7 @@ from graph.state import ResearchState
 
 logger = logging.getLogger(__name__)
 _model = genai.GenerativeModel(
-<<<<<<< HEAD
-    "gemini-2.0-flash",
-=======
     "gemini-2.5-flash",
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
     generation_config=genai.GenerationConfig(max_output_tokens=8192),
 )
 

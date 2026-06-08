@@ -28,7 +28,7 @@ services:
     volumes:
       - chromadb_data:/chroma/chroma
     ports:
-      - "8001:8000"
+      - "${CHROMA_PORT:-8001}:8000"
     restart: unless-stopped
 
 volumes:

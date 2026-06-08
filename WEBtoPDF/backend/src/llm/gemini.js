@@ -2,12 +2,38 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const RETRY_DELAYS_MS = [2000, 5000, 10000, 20000];
+
+function isTransient(err) {
+  const msg = String(err?.message ?? err);
+  return /\b(503|429)\b|service unavailable|high demand|overloaded|unavailable|resource_exhausted|rate limit/i.test(msg);
+}
+
+// Appelle generateContent avec retry exponentiel sur les erreurs transitoires
+// (503 surcharge modèle, 429 rate limit). Relance l'erreur si non transitoire
+// ou après épuisement des tentatives.
+async function generateWithRetry(model, payload, label = 'gemini') {
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await model.generateContent(payload);
+    } catch (err) {
+      lastErr = err;
+      if (!isTransient(err) || attempt === RETRY_DELAYS_MS.length) throw err;
+      const delay = RETRY_DELAYS_MS[attempt];
+      console.warn(`⚠ ${label}: Gemini indisponible (transitoire), retry ${attempt + 1}/${RETRY_DELAYS_MS.length} dans ${delay / 1000}s`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 export async function ask(systemPrompt, userPrompt) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
     systemInstruction: systemPrompt,
   });
-  const result = await model.generateContent(userPrompt);
+  const result = await generateWithRetry(model, userPrompt, 'ask');
   return result.response.text();
 }
 
@@ -17,7 +43,7 @@ export async function askJson(systemPrompt, userPrompt) {
     systemInstruction: systemPrompt,
     generationConfig: { responseMimeType: 'application/json' },
   });
-  const result = await model.generateContent(userPrompt);
+  const result = await generateWithRetry(model, userPrompt, 'askJson');
   return JSON.parse(result.response.text());
 }
 
@@ -58,7 +84,7 @@ Return JSON: {"html": "...", "css": "..."}`,
     },
   ];
 
-  const result = await model.generateContent(parts);
+  const result = await generateWithRetry(model, parts, 'styleAgent');
   return JSON.parse(result.response.text());
 }
 
@@ -70,7 +96,7 @@ export async function compareImages(pdfScreenshot, htmlScreenshot) {
     generationConfig: { responseMimeType: 'application/json' },
   });
 
-  const result = await model.generateContent([
+  const result = await generateWithRetry(model, [
     { inlineData: { mimeType: 'image/png', data: pdfScreenshot.toString('base64') } },
     { inlineData: { mimeType: 'image/png', data: htmlScreenshot.toString('base64') } },
     {

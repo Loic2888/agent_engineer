@@ -33,6 +33,10 @@ if not exist ".env" (
     exit /b 1
 )
 
+:: Read PORT from .env (default 3000)
+set "PORT=3000"
+for /f "tokens=2 delims==" %%a in ('findstr /b /i "PORT=" .env 2^>nul') do set "PORT=%%a"
+
 :: Build & start with Docker Compose
 echo [INFO] Construction et demarrage du conteneur...
 docker compose up --build -d
@@ -46,10 +50,10 @@ if %ERRORLEVEL% neq 0 (
 :: Wait a moment then open the browser
 echo [INFO] Demarrage en cours, ouverture du navigateur...
 timeout /t 3 /nobreak >nul
-start http://localhost:3001
+start http://localhost:%PORT%
 
 echo.
-echo [OK] Application disponible sur http://localhost:3001
+echo [OK] Application disponible sur http://localhost:%PORT%
 echo Pour arreter : docker compose down
 echo.
 pause

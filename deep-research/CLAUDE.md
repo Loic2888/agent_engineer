@@ -8,13 +8,6 @@ Fichier de contexte pour Claude Code. Lis-le entièrement avant toute action.
 
 Application agentique de deep research : l'utilisateur soumet une question, un pipeline
 multi-agents collecte, synthétise et rédige un rapport Markdown structuré avec citations.
-<<<<<<< HEAD
-
-**Stack :**
-- Backend : Python 3.12 + FastAPI + LangGraph
-- LLM : Google Gemini (gemini-2.0-flash via google-generativeai SDK)
-- Recherche web : Tavily API + SerpAPI (fallback)
-=======
 Les recherches sont sauvegardées dans une base SQLite et un système de similarité évite
 les doublons.
 
@@ -23,7 +16,6 @@ les doublons.
 - LLM : Google Gemini (`gemini-2.5-flash` via `google-generativeai` SDK)
 - Recherche web : Tavily API + SerpAPI (fallback)
 - Base de données : SQLite via `aiosqlite`
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 - Frontend : React 19 + Vite + TailwindCSS
 - Streaming : Server-Sent Events (SSE)
 - Config : python-dotenv
@@ -35,14 +27,6 @@ les doublons.
 ```
 deep-research/
 ├── CLAUDE.md
-<<<<<<< HEAD
-├── .env                        # clés API (jamais committé)
-├── .env.example
-├── .gitignore
-│
-├── backend/
-│   ├── main.py                 # point d'entrée FastAPI
-=======
 ├── setup.py                    # script de lancement automatique (double-clic)
 ├── launch.bat                  # wrapper Windows double-cliquable → appelle setup.py
 ├── .env                        # clés API (jamais committé)
@@ -52,7 +36,6 @@ deep-research/
 │
 ├── backend/
 │   ├── main.py                 # point d'entrée FastAPI + lifespan DB
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 │   ├── requirements.txt
 │   │
 │   ├── agents/
@@ -74,14 +57,11 @@ deep-research/
 │   │   ├── state.py            # ResearchState (TypedDict LangGraph)
 │   │   └── pipeline.py         # définition du graph LangGraph
 │   │
-<<<<<<< HEAD
-=======
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── database.py         # init SQLite (CREATE TABLE IF NOT EXISTS)
 │   │   └── crud.py             # save / list / get / delete / find_similar
 │   │
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 │   └── utils/
 │       ├── __init__.py
 │       └── markdown.py         # formatage du rapport final
@@ -89,10 +69,7 @@ deep-research/
 └── frontend/
     ├── index.html
     ├── package.json
-<<<<<<< HEAD
-=======
     ├── nginx.conf              # proxy /research (SSE) + /history → backend
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
     ├── vite.config.ts
     ├── tailwind.config.ts
     └── src/
@@ -102,17 +79,11 @@ deep-research/
         │   ├── SearchBar.tsx       # input + bouton lancer
         │   ├── ProgressSteps.tsx   # affiche l'étape en cours (SSE)
         │   ├── ReportViewer.tsx    # rendu Markdown du rapport final
-<<<<<<< HEAD
-        │   └── SourceCard.tsx      # carte pour chaque source citée
-        └── lib/
-            └── api.ts              # appels backend + parsing SSE
-=======
         │   ├── SourceCard.tsx      # carte pour chaque source citée
         │   ├── HistoryPanel.tsx    # sidebar gauche — liste des recherches passées
         │   └── SimilarityModal.tsx # modal proposant les recherches similaires
         └── lib/
             └── api.ts              # appels backend + parsing SSE + fonctions history
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 ```
 
 ---
@@ -126,14 +97,10 @@ GEMINI_API_KEY=AIza...
 TAVILY_API_KEY=tvly-...
 SERPAPI_API_KEY=...
 
-<<<<<<< HEAD
-# Optionnel
-=======
 # Injecté automatiquement par docker-compose (ne pas modifier)
 DB_PATH=/data/research.db
 
 # Optionnel (local dev uniquement)
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 BACKEND_PORT=8000
 CORS_ORIGINS=http://localhost:5173
 ```
@@ -156,10 +123,7 @@ CORS_ORIGINS=http://localhost:5173
 | `beautifulsoup4` | latest | Parsing HTML |
 | `python-dotenv` | latest | Chargement .env |
 | `pydantic` | v2 | Validation des données |
-<<<<<<< HEAD
-=======
 | `aiosqlite` | latest | SQLite async — persistance de l'historique |
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 ```bash
 # Installation backend
@@ -214,11 +178,7 @@ Le pipeline est un **graph dirigé** avec un état partagé (`ResearchState`).
 [writer_final]     → rédige le rapport Markdown complet
    │
    ▼
-<<<<<<< HEAD
-[END]
-=======
 [END — save to SQLite]
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 ```
 
 ### ResearchState (graph/state.py)
@@ -241,52 +201,6 @@ class ResearchState(TypedDict):
 
 ---
 
-<<<<<<< HEAD
-## Streaming SSE — affichage en temps réel
-
-Le frontend affiche l'avancement de chaque étape en temps réel via SSE.
-
-### Backend (main.py)
-
-```python
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-import json
-
-@app.post("/research")
-async def run_research(payload: ResearchRequest):
-    async def event_stream():
-        async for event in pipeline.astream({"query": payload.query}):
-            data = json.dumps({"step": event["status"], "data": event})
-            yield f"data: {data}\n\n"
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
-```
-
-### Frontend (lib/api.ts)
-
-```typescript
-export async function streamResearch(query: string, onStep: (step: string) => void) {
-  const response = await fetch("/research", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const lines = decoder.decode(value).split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const event = JSON.parse(line.slice(6));
-        onStep(event.step);
-      }
-    }
-  }
-}
-```
-=======
 ## Historique et similarité
 
 ### Base de données (db/)
@@ -330,7 +244,6 @@ Le backend émet un événement par nœud LangGraph terminé.
 Un événement `saved` est émis après sauvegarde en DB (déclenche le refresh de l'historique).
 
 Événements possibles : `planner` · `researcher` · `synthesizer` · `writer_outline` · `editor` · `writer_final` · `saved` · `error`
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 ---
 
@@ -351,11 +264,7 @@ Un événement `saved` est émis après sauvegarde en DB (déclenche le refresh 
 - Reçoit `raw_sources`
 - Déduplique par URL
 - Classe par pertinence (score Tavily) + récence
-<<<<<<< HEAD
-- Retourne `ranked_sources` (max 15 sources)
-=======
 - Retourne `ranked_sources` (max 15 sources, tronqués à 2 000 chars)
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 ### writer.py (outline)
 - Reçoit `ranked_sources`
@@ -383,10 +292,7 @@ Un événement `saved` est émis après sauvegarde en DB (déclenche le refresh 
 - Ne jamais committer `.env` (vérifie `.gitignore` avant chaque commit)
 - Un agent = un fichier dans `agents/`
 - Un outil = un fichier dans `tools/`
-<<<<<<< HEAD
-=======
 - Toute nouvelle table SQLite → migration dans `db/database.py`
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 ### Python
 - Type hints partout (Pydantic v2 pour les modèles de données)
@@ -404,25 +310,18 @@ Un événement `saved` est émis après sauvegarde en DB (déclenche le refresh 
 - Tailwind pour tout le styling, pas de CSS custom
 - `ProgressSteps` se met à jour via les événements SSE en temps réel
 - `ReportViewer` utilise `react-markdown` + `remark-gfm`
-<<<<<<< HEAD
-=======
 - `HistoryPanel` se rafraîchit via prop `refreshTrigger` (nombre incrémenté)
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 ---
 
 ## Commandes utiles
 
 ```bash
-<<<<<<< HEAD
-# Docker — lancer tout le projet (depuis /deep-research)
-=======
 # Lancer l'app (Windows — double-clic ou terminal)
 launch.bat
 python setup.py
 
 # Docker — rebuild complet
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 docker compose up --build
 
 # Docker — rebuild un seul service
@@ -432,15 +331,12 @@ docker compose up -d backend
 # Docker — voir les logs
 docker compose logs -f backend
 
-<<<<<<< HEAD
-=======
 # Docker — arrêter sans perdre les données
 docker compose down
 
 # Docker — arrêter ET supprimer les données
 docker compose down -v
 
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 # Local — Lancer le backend (depuis /backend)
 source .venv/bin/activate
 uvicorn main:app --reload --port 8000
@@ -452,46 +348,17 @@ npm run dev
 python -c "from agents.planner import run_planner; import asyncio; asyncio.run(run_planner('What is LangGraph?'))"
 
 # Vérifier les imports
-<<<<<<< HEAD
-python -c "import langgraph, anthropic, tavily; print('OK')"
-=======
 python -c "import langgraph, google.generativeai, tavily; print('OK')"
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 ```
 
 ---
 
-<<<<<<< HEAD
-## Ordre de développement recommandé
-
-1. Setup projet (structure dossiers, .env, requirements.txt, vite init)
-2. `graph/state.py` — définir ResearchState
-3. `tools/tavily_search.py` — tester la recherche en isolation
-4. `tools/serp_search.py` — tester le fallback
-5. `agents/planner.py` — tester la décomposition de question
-6. `agents/researcher.py` — tester collecte + scraping
-7. `agents/synthesizer.py`
-8. `agents/writer.py` (outline uniquement)
-9. `agents/editor.py`
-10. `agents/writer.py` (rapport final)
-11. `graph/pipeline.py` — assembler le graph complet
-12. `main.py` — exposer via FastAPI + SSE
-13. Frontend — SearchBar + ProgressSteps + ReportViewer
-
----
-
-=======
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 ## Pièges connus
 
 - **Boucle infinie** : toujours borner les itérations editor→researcher (`iteration < 2`)
 - **Rate limit Tavily** : ajouter un `asyncio.sleep(0.5)` entre chaque appel si batch
 - **CORS** : configurer `CORSMiddleware` dans `main.py` pour autoriser `localhost:5173`
 - **SSE et proxies** : en prod, s'assurer que le reverse proxy ne bufferise pas le stream (header `X-Accel-Buffering: no`)
-<<<<<<< HEAD
-- **Tokens LLM** : le synthesizer doit tronquer les sources trop longues avant de les passer au writer (max ~2000 tokens par source)
-=======
 - **Tokens LLM** : le synthesizer tronque les sources à 2 000 chars avant de les passer au writer
 - **Volume Docker** : ne jamais utiliser `docker compose down -v` en prod — supprime toutes les recherches
 - **npm ci** : le Dockerfile frontend utilise `npm install` (pas `npm ci`) car il n'y a pas de `package-lock.json` dans le repo
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d

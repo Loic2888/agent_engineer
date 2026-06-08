@@ -11,8 +11,6 @@ export type Source = {
   score: number
 }
 
-<<<<<<< HEAD
-=======
 export type HistoryItem = {
   id: number
   query: string
@@ -34,7 +32,6 @@ export type HistoryDetail = {
   created_at: string
 }
 
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 export async function streamResearch(
   query: string,
   onStep: (event: ResearchEvent) => void,
@@ -80,8 +77,6 @@ export async function streamResearch(
     }
   }
 }
-<<<<<<< HEAD
-=======
 
 export async function fetchHistory(): Promise<HistoryItem[]> {
   const res = await fetch('/history')
@@ -112,4 +107,3 @@ export async function checkSimilarResearch(query: string): Promise<SimilarItem[]
     return []
   }
 }
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d

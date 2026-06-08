@@ -1,65 +1,41 @@
 @echo off
-pushd "%~dp0"
+setlocal enabledelayedexpansion
+REM ============================================================
+REM  Lanceur Windows pour un projet stocke sur le systeme WSL.
+REM  Docker est execute DANS WSL pour garder des chemins corrects
+REM  (bind mounts + build context). Sinon Docker Desktop mappe le
+REM  chemin en Z:\... ou /mnt/c\... et ne trouve pas les fichiers.
+REM ============================================================
 title Email Agent - Demarrage
-color 0A
 
-echo ============================================
-echo   EMAIL AGENT - Lancement de l'application
-echo ============================================
-echo.
+set "DP=%~dp0"
+if "!DP:~-1!"=="\" set "DP=!DP:~0,-1!"
 
-REM Verification Docker Desktop
-docker info >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERREUR] Docker Desktop n'est pas lance.
-    echo Veuillez demarrer Docker Desktop puis relancer ce fichier.
-    popd
+REM Detecte un chemin sur le FS WSL (\\wsl.localhost\<distro>\ ou \\wsl$\<distro>\)
+set "ISWSL="
+echo !DP! | find /i "wsl.localhost" >nul && set "ISWSL=1"
+echo !DP! | find /i "wsl$" >nul && set "ISWSL=1"
+
+if defined ISWSL (
+    REM Retire le prefixe UNC puis le nom de la distro, convertit \ en /
+    set "TMP=!DP!"
+    set "TMP=!TMP:\\wsl.localhost\=!"
+    set "TMP=!TMP:\\wsl$\=!"
+    for /f "tokens=1,* delims=\" %%a in ("!TMP!") do set "TMP=%%b"
+    set "LINPATH=/!TMP:\=/!"
+) else (
+    REM Chemin Windows classique (C:\...) : wslpath fonctionne
+    for /f "delims=" %%i in ('wsl wslpath -a "!DP!"') do set "LINPATH=%%i"
+)
+
+if "!LINPATH!"=="" (
+    echo [ERREUR] Impossible de determiner le chemin WSL du projet.
     pause
     exit /b 1
 )
 
-REM Verification fichier .env
-if not exist ".env" (
-    echo [ERREUR] Fichier .env manquant.
-    echo Copiez .env.example en .env et renseignez vos cles API.
-    popd
-    pause
-    exit /b 1
-)
-
-echo [1/3] Construction des images Docker (peut prendre plusieurs minutes)...
-docker compose build
-if %errorlevel% neq 0 (
-    echo [ERREUR] La construction a echoue.
-    popd
-    pause
-    exit /b 1
-)
+echo Projet (WSL) : !LINPATH!
+wsl -e bash -lc "'!LINPATH!/start.sh'"
 
 echo.
-echo [2/3] Demarrage des conteneurs...
-docker compose up -d
-if %errorlevel% neq 0 (
-    echo [ERREUR] Le demarrage a echoue.
-    popd
-    pause
-    exit /b 1
-)
-
-echo.
-echo [3/3] Attente de disponibilite...
-timeout /t 5 /nobreak >nul
-
-echo.
-echo ============================================
-echo   Application disponible :
-echo   Frontend  : http://localhost:3004
-echo   Backend   : http://localhost:8002
-echo   API Docs  : http://localhost:8002/docs
-echo ============================================
-echo.
-echo Appuyez sur une touche pour ouvrir le navigateur...
-pause >nul
-
-start http://localhost:3004
-popd
+pause

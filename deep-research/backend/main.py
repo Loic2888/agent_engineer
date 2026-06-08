@@ -1,13 +1,9 @@
 import json
 import logging
 import os
-<<<<<<< HEAD
-from fastapi import FastAPI
-=======
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -21,11 +17,6 @@ logger = logging.getLogger(__name__)
 import google.generativeai as genai  # noqa: E402
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-<<<<<<< HEAD
-from graph.pipeline import pipeline  # noqa: E402 — import after load_dotenv + genai.configure
-
-app = FastAPI(title="Deep Research Agent")
-=======
 from graph.pipeline import pipeline          # noqa: E402
 from db.database import init_db             # noqa: E402
 from db.crud import (                       # noqa: E402
@@ -45,7 +36,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Deep Research Agent", lifespan=lifespan)
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,14 +71,6 @@ async def run_research(payload: ResearchRequest):
     }
 
     async def event_stream():
-<<<<<<< HEAD
-        try:
-            async for chunk in pipeline.astream(initial_state, stream_mode="updates"):
-                for node_name, update in chunk.items():
-                    # Exclude raw_sources — too large for the stream
-                    safe = {k: v for k, v in update.items() if k != "raw_sources"}
-                    yield f"data: {json.dumps({'step': node_name, 'data': safe})}\n\n"
-=======
         final_report = ""
         final_sources: list[dict] = []
 
@@ -100,6 +82,7 @@ async def run_research(payload: ResearchRequest):
                     if update.get("report"):
                         final_report = update["report"]
 
+                    # Exclude raw_sources — too large for the stream
                     safe = {k: v for k, v in update.items() if k != "raw_sources"}
                     yield f"data: {json.dumps({'step': node_name, 'data': safe})}\n\n"
 
@@ -107,7 +90,6 @@ async def run_research(payload: ResearchRequest):
                 research_id = await save_research(payload.query, final_report, final_sources)
                 yield f"data: {json.dumps({'step': 'saved', 'data': {'id': research_id}})}\n\n"
 
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
         except Exception as e:
             logger.error("Pipeline error: %s", e)
             yield f"data: {json.dumps({'step': 'error', 'data': {'error': str(e)}})}\n\n"
@@ -121,8 +103,6 @@ async def run_research(payload: ResearchRequest):
             "X-Accel-Buffering": "no",
         },
     )
-<<<<<<< HEAD
-=======
 
 
 class SimilarRequest(BaseModel):
@@ -153,4 +133,3 @@ async def delete_history_item(research_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
->>>>>>> 2c1d62c3fabcf807dbf85dc1033ab2ce2b94b59d
